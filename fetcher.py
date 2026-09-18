@@ -7,12 +7,15 @@ import logging
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+import warnings
 from urllib.parse import urljoin
 
 import dateutil.parser
 import feedparser
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 from config import (
     BROOKFIELD_BBU_NEWSROOM_URL,
@@ -377,6 +380,8 @@ def fetch_benzinga_news(
         except Exception as e:
             logger.error(f"Error fetching Benzinga news for ticker {ticker}: {e}")
 
+    # Sort newest first across all queried tickers
+    articles.sort(key=lambda x: x.get("published_date") or datetime.min, reverse=True)
     logger.info(f"Fetched {len(articles)} articles from Benzinga API across tickers: {target_tickers}")
     return articles
 

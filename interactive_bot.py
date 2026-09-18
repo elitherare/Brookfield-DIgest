@@ -342,7 +342,31 @@ class InteractiveTelegramBot:
         parse_mode: str = "HTML",
         reply_markup: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """Send message directly to a specific chat ID."""
+        """Send message directly to a specific chat ID, chunking if necessary."""
+        if not text:
+            return False
+
+        # Telegram hard limit is 4096 characters; chunk by paragraph if large
+        if len(text) > 4000:
+            chunks = []
+            curr = ""
+            for part in text.split("\n\n"):
+                if len(curr) + len(part) + 2 > 4000:
+                    if curr:
+                        chunks.append(curr.strip())
+                    curr = part + "\n\n"
+                else:
+                    curr += part + "\n\n"
+            if curr:
+                chunks.append(curr.strip())
+
+            all_ok = True
+            for i, chunk in enumerate(chunks):
+                rm = reply_markup if i == len(chunks) - 1 else None
+                ok = self.send_message(chat_id, chunk, parse_mode=parse_mode, reply_markup=rm)
+                all_ok = all_ok and ok
+            return all_ok
+
         payload = {
             "chat_id": chat_id,
             "text": text,
@@ -353,7 +377,16 @@ class InteractiveTelegramBot:
             payload["reply_markup"] = reply_markup
         try:
             resp = requests.post(f"{self.api_url}/sendMessage", json=payload, timeout=15)
-            return resp.json().get("ok", False)
+            data = resp.json()
+            if not data.get("ok"):
+                logger.error(f"Telegram sendMessage failed: {data.get('description')}")
+                if parse_mode == "HTML":
+                    logger.info("Retrying sendMessage without HTML parse mode...")
+                    payload.pop("parse_mode", None)
+                    retry_resp = requests.post(f"{self.api_url}/sendMessage", json=payload, timeout=15)
+                    return retry_resp.json().get("ok", False)
+                return False
+            return True
         except Exception as e:
             logger.error(f"Error sending message: {e}")
             return False
@@ -734,9 +767,12 @@ class InteractiveTelegramBot:
             self.send_message(chat_id, f"No recent Benzinga wire items found for {target_display}.")
             return
 
+        articles = articles[:limit]
+
         lines = [f"⚡ <b>BENZINGA REAL-TIME WIRE ({len(articles)} items)</b>\n"]
         for idx, art in enumerate(articles, 1):
-            h = html.escape(str(art.get("headline", "Headline")))
+            raw_h = html.unescape(str(art.get("headline", "Headline")))
+            h = html.escape(raw_h)
             date_str = str(art.get("date_str", "") or art.get("published_date", ""))
             if len(date_str) > 16:
                 date_str = date_str[:16].replace("T", " ")
@@ -746,7 +782,7 @@ class InteractiveTelegramBot:
             entry = f"<b>{idx}. {h}</b>\n"
             entry += f"   <i>{date_str}</i> | 🏷️ <code>{ticker}</code>"
             if url:
-                entry += f' | <a href="{url}">Read Wire</a>'
+                entry += f' | <a href="{html.escape(url)}">Read Wire</a>'
             lines.append(entry)
 
         self.send_message(chat_id, "\n\n".join(lines))
