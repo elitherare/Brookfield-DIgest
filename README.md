@@ -15,6 +15,7 @@ flowchart TD
         A2[Brookfield Corporate Newsroom]
         A3[Quarterly Shareholder Letters\nUnearths Bolt-ons & Exits]
         A4[Syndicated RSS Feeds]
+        A5[Benzinga News API - Massive.com\nInstitutional Wire: BAM, BN, BBU, BIP, BEP]
     end
 
     subgraph Core [Pipeline & Intelligence Engine]
@@ -67,7 +68,7 @@ flowchart TD
 | **`setup_vm.sh`** | 1-click cloud VM deployment script. Installs Python, builds `.venv`, and creates `systemd` 24/7 service. |
 | **`brookfield_24mo_log.csv`** | Master intelligence datastore containing 60 verified, de-bundled transactions. |
 | **`test_pipeline.py`** | Test suite for scraping, deduplication, schema validation, and multi-event de-bundling (7 tests). |
-| **`test_interactive_bot.py`** | Test suite for the interactive Telegram bot, query engine, deep dive generator, export, and digest (9 tests). |
+| **`test_interactive_bot.py`** | Test suite for the interactive Telegram bot, query engine, Benzinga wire, deep dive generator, export, and digest (11 tests). |
 | **`.env`** | Private credentials file (git-ignored for security). |
 | **`.env.example`** | Safe template showing required environment variables. |
 
@@ -85,6 +86,7 @@ Once running, you can interact with **`@BAMIntelligence_bot`** from your phone o
 * **`/exits`** — Lists recent Brookfield divestitures, secondary exits, and sales.
 * **`/letters`** — Highlights recent Brookfield Letters to Shareholders and unearths portfolio company bolt-ons.
 * **`/digest`** — Compiles and returns an executive morning briefing of recent dealflow, exits, and portfolio health.
+* **`/wire [ticker]`** — Real-time Benzinga institutional wire for Brookfield entities (e.g., `/wire` or `/wire BAM`).
 * **`/export`** — Uploads and delivers the raw `brookfield_24mo_log.csv` spreadsheet directly into your Telegram chat to open in Excel or Numbers.
 * **`/stats`** — Generates a portfolio snapshot (total deals, breakdown by region, deal structures, and latest entry).
 * **`/scan`** — Triggers an on-demand scraping and classification sweep immediately without waiting for the next scheduled interval.
@@ -180,6 +182,7 @@ Paste your keys:
 GEMINI_API_KEY=your_actual_gemini_api_key
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
+MASSIVE_BENZINGA_API_KEY=your_benzinga_api_key
 ```
 Press `Ctrl + O`, then `Enter` to save, and `Ctrl + X` to exit.
 

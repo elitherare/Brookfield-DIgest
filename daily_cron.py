@@ -15,7 +15,11 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from api_manager import get_telegram_credentials, is_telegram_configured
+from api_manager import (
+    get_telegram_credentials,
+    is_benzinga_configured,
+    is_telegram_configured,
+)
 from classifier import GeminiClassifier
 from config import (
     BROOKFIELD_BBU_NEWSROOM_URL,
@@ -26,6 +30,7 @@ from config import (
 )
 from fetcher import (
     fetch_article_body,
+    fetch_benzinga_news,
     fetch_brookfield_press_releases,
     fetch_brookfield_shareholder_letters,
     fetch_rss_feed,
@@ -123,10 +128,13 @@ class TelegramNotifier:
             "Regulatory": "⚖️",
             "Market": "📈",
         }
-        signal_emoji = emoji_map.get(signal, "📌")
+        signal_emoji = emoji_map.get(signal, "📢")
+        ticker = record.get("ticker", "")
+        source = record.get("source", "")
+        wire_tag = f"⚡ <b>[BENZINGA WIRE • {ticker}]</b>\n" if (source == "benzinga" or ticker) else ""
 
         lines = [
-            f"<b>{signal_emoji} BROOKFIELD PE INTELLIGENCE ALERT</b>",
+            f"{wire_tag}<b>{signal_emoji} BROOKFIELD PE INTELLIGENCE ALERT</b>",
             f"<i>{pub_date}</i>",
             "",
             f"<b>📌 Action:</b> {headline}",
@@ -187,6 +195,12 @@ def run_monitoring_cycle(
         rss_items = fetch_rss_feed(feed_url)
         logger.info(f"Found {len(rss_items)} items from RSS: {feed_url[:60]}...")
         candidates.extend(rss_items[:10])
+
+    # 5. Fetch Benzinga Institutional News Wire (Massive.com)
+    if is_benzinga_configured():
+        logger.info("Polling Benzinga Institutional News Wire for BAM, BN, BBU, BIP, BEP...")
+        benzinga_items = fetch_benzinga_news(limit=5)
+        candidates.extend(benzinga_items)
 
     logger.info(f"\nTotal candidate items collected for evaluation: {len(candidates)}")
 

@@ -3,8 +3,10 @@ Configuration settings for the Brookfield Private Equity Intelligence Pipeline.
 """
 
 from api_manager import (
+    get_benzinga_api_key,
     get_gemini_api_key,
     get_telegram_credentials,
+    is_benzinga_configured,
     is_gemini_configured,
     is_telegram_configured,
 )
@@ -16,6 +18,14 @@ GEMINI_API_KEY = get_gemini_api_key()
 _telegram_creds = get_telegram_credentials()
 TELEGRAM_BOT_TOKEN = _telegram_creds["bot_token"]
 TELEGRAM_CHAT_ID = _telegram_creds["chat_id"]
+BENZINGA_API_KEY = get_benzinga_api_key()
+
+# ==============================================================================
+# Benzinga News API Configuration (Massive.com)
+# ==============================================================================
+BENZINGA_BASE_URL = "https://api.massive.com/benzinga/v2/news"
+BENZINGA_TICKERS = ["BAM", "BN", "BBU", "BIP", "BEP"]
+BENZINGA_FETCH_LIMIT = 10
 
 # ==============================================================================
 # Gemini Model Configuration

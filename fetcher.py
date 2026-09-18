@@ -6,7 +6,7 @@ Handles pulling paginated HTML from Brookfield's newsroom and standard RSS feeds
 import logging
 import re
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
 
 import dateutil.parser
@@ -301,4 +301,82 @@ def fetch_brookfield_shareholder_letters(
 
     logger.info(f"Found {len(letters)} shareholder web letters")
     return letters
+
+
+def fetch_benzinga_news(
+    tickers: Optional[List[str]] = None,
+    limit: int = 10,
+    api_key: Optional[str] = None,
+    timeout: int = 15,
+) -> List[Dict[str, Any]]:
+    """
+    Fetch institutional news and M&A reports from Benzinga API (via Massive.com).
+    Covers Brookfield tickers (BAM, BN, BBU, BIP, BEP).
+    """
+    from config import BENZINGA_API_KEY, BENZINGA_BASE_URL, BENZINGA_TICKERS
+
+    key = api_key or BENZINGA_API_KEY
+    if not key or key == "YOUR_BENZINGA_API_KEY":
+        logger.warning("Benzinga API key not configured. Skipping Benzinga fetch.")
+        return []
+
+    target_tickers = tickers or BENZINGA_TICKERS
+    articles = []
+    seen_ids = set()
+
+    for ticker in target_tickers:
+        params = {
+            "tickers": ticker,
+            "limit": limit,
+            "sort": "published.desc",
+            "apiKey": key,
+        }
+        try:
+            resp = requests.get(BENZINGA_BASE_URL, params=params, timeout=timeout)
+            if resp.status_code != 200:
+                logger.warning(f"Benzinga API returned {resp.status_code} for ticker {ticker}: {resp.text[:80]}")
+                continue
+
+            data = resp.json()
+            results = data.get("results", [])
+            for item in results:
+                b_id = item.get("benzinga_id") or item.get("id")
+                if b_id in seen_ids:
+                    continue
+                seen_ids.add(b_id)
+
+                title = item.get("title", "").strip()
+                if not title:
+                    continue
+
+                url = item.get("url") or f"https://www.benzinga.com/news/{b_id}"
+                pub_date_str = item.get("published", "")
+                parsed_date = None
+                if pub_date_str:
+                    try:
+                        parsed_date = datetime.fromisoformat(pub_date_str.replace("Z", "+00:00"))
+                    except Exception:
+                        pass
+
+                body = item.get("body", "") or item.get("teaser", "")
+                if body and "<" in body:
+                    body_soup = BeautifulSoup(body, "html.parser")
+                    body = body_soup.get_text(" ", strip=True)
+
+                articles.append({
+                    "headline": title,
+                    "date_str": pub_date_str,
+                    "published_date": parsed_date,
+                    "url": url,
+                    "body_text": body,
+                    "source": "benzinga",
+                    "ticker": ticker,
+                    "channels": item.get("channels", []),
+                    "benzinga_id": b_id,
+                })
+        except Exception as e:
+            logger.error(f"Error fetching Benzinga news for ticker {ticker}: {e}")
+
+    logger.info(f"Fetched {len(articles)} articles from Benzinga API across tickers: {target_tickers}")
+    return articles
 

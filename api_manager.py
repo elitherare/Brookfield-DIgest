@@ -46,6 +46,17 @@ class APIManager:
             "chat_id": chat_id,
         }
 
+    @staticmethod
+    def get_benzinga_api_key() -> str:
+        """
+        Retrieve Benzinga (Massive.com) API Key from .env or environment variable.
+        """
+        key = os.getenv("MASSIVE_BENZINGA_API_KEY") or os.getenv("BENZINGA_API_KEY", "")
+        key = key.strip()
+        if key.startswith(('"', "'")) and key.endswith(('"', "'")):
+            key = key[1:-1].strip()
+        return key
+
     @classmethod
     def is_gemini_configured(cls) -> bool:
         """Check if a non-placeholder Gemini API key is provided."""
@@ -58,9 +69,17 @@ class APIManager:
         creds = cls.get_telegram_credentials()
         return bool(creds["bot_token"] and creds["chat_id"])
 
+    @classmethod
+    def is_benzinga_configured(cls) -> bool:
+        """Check if Benzinga API key is configured."""
+        key = cls.get_benzinga_api_key()
+        return bool(key and key != "YOUR_BENZINGA_API_KEY")
+
 
 # Module-level convenience accessors
 get_gemini_api_key = APIManager.get_gemini_api_key
 get_telegram_credentials = APIManager.get_telegram_credentials
+get_benzinga_api_key = APIManager.get_benzinga_api_key
 is_gemini_configured = APIManager.is_gemini_configured
 is_telegram_configured = APIManager.is_telegram_configured
+is_benzinga_configured = APIManager.is_benzinga_configured

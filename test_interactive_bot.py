@@ -83,6 +83,31 @@ class TestInteractiveBot(unittest.TestCase):
         missing_dates = df["published_date"].isna().sum()
         self.assertEqual(missing_dates, 0, "No records should have missing published_date")
 
+    def test_benzinga_wire_fetching(self):
+        from api_manager import is_benzinga_configured
+        from fetcher import fetch_benzinga_news
+        if not is_benzinga_configured():
+            self.skipTest("Benzinga API key not configured in .env")
+
+        articles = fetch_benzinga_news(tickers=["BAM"], limit=2)
+        self.assertIsInstance(articles, list)
+        if articles:
+            first = articles[0]
+            self.assertIn("headline", first)
+            self.assertIn("url", first)
+            self.assertEqual(first.get("ticker"), "BAM")
+            self.assertEqual(first.get("source"), "benzinga")
+
+    def test_wire_command_handler(self):
+        bot = InteractiveTelegramBot(datastore_path=DEFAULT_LOG_CSV)
+        sent_messages = []
+        bot.send_message = lambda chat_id, text, reply_markup=None: sent_messages.append((chat_id, text))
+
+        bot.handle_wire(chat_id="12345", text="/wire BAM 2")
+        self.assertGreaterEqual(len(sent_messages), 1)
+        combined_text = " ".join(msg[1] for msg in sent_messages)
+        self.assertTrue("Benzinga" in combined_text or "wire" in combined_text.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

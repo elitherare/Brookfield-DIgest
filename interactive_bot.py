@@ -22,6 +22,7 @@ import requests
 from api_manager import (
     get_gemini_api_key,
     get_telegram_credentials,
+    is_benzinga_configured,
     is_gemini_configured,
     is_telegram_configured,
 )
@@ -32,6 +33,7 @@ from config import (
     RATE_LIMIT_SLEEP_SECONDS,
 )
 from daily_cron import TelegramNotifier, run_monitoring_cycle
+from fetcher import fetch_benzinga_news
 from pipeline import Pipeline
 
 # Configure logging
@@ -409,6 +411,7 @@ class InteractiveTelegramBot:
             "• <b>/exits</b> — View recent sales and divestitures\n"
             "• <b>/letters</b> — Key highlights from Shareholder Letters\n"
             "• <b>/digest</b> — Morning executive briefing of recent dealflow\n"
+            "• <b>/wire [ticker]</b> — Real-time Benzinga wire (e.g. <code>/wire</code> or <code>/wire BAM</code>)\n"
             "• <b>/export</b> — Download master CSV datastore directly to phone\n"
             "• <b>/stats</b> — Portfolio summary & regional breakdown\n"
             "• <b>/scan</b> — Trigger an immediate live news sweep\n"
@@ -702,6 +705,52 @@ class InteractiveTelegramBot:
         if not success:
             self.send_message(chat_id, "❌ Failed to send CSV file to Telegram. Please check server logs.")
 
+    def handle_wire(self, chat_id: Any, text: str) -> None:
+        """Fetch and display real-time institutional news from the Benzinga Wire."""
+        if not is_benzinga_configured():
+            self.send_message(
+                chat_id,
+                "⚠️ <b>Benzinga News API is not configured.</b>\n"
+                "Please add <code>MASSIVE_BENZINGA_API_KEY</code> to your <code>.env</code> file."
+            )
+            return
+
+        parts = text.strip().split()
+        tickers = None
+        limit = 5
+        valid_tickers = ["BAM", "BN", "BBU", "BIP", "BEP"]
+        for p in parts[1:]:
+            p_up = p.upper()
+            if p_up in valid_tickers:
+                tickers = [p_up]
+            elif p.isdigit():
+                limit = min(max(int(p), 1), 10)
+
+        target_display = f"<code>{tickers[0]}</code>" if tickers else "<code>BAM, BN, BBU, BIP, BEP</code>"
+        self.send_message(chat_id, f"⚡ <i>Fetching live Benzinga wire for {target_display}...</i>")
+
+        articles = fetch_benzinga_news(tickers=tickers, limit=limit)
+        if not articles:
+            self.send_message(chat_id, f"No recent Benzinga wire items found for {target_display}.")
+            return
+
+        lines = [f"⚡ <b>BENZINGA REAL-TIME WIRE ({len(articles)} items)</b>\n"]
+        for idx, art in enumerate(articles, 1):
+            h = html.escape(str(art.get("headline", "Headline")))
+            date_str = str(art.get("date_str", "") or art.get("published_date", ""))
+            if len(date_str) > 16:
+                date_str = date_str[:16].replace("T", " ")
+            url = art.get("url", "")
+            ticker = art.get("ticker", "PE")
+
+            entry = f"<b>{idx}. {h}</b>\n"
+            entry += f"   <i>{date_str}</i> | 🏷️ <code>{ticker}</code>"
+            if url:
+                entry += f' | <a href="{url}">Read Wire</a>'
+            lines.append(entry)
+
+        self.send_message(chat_id, "\n\n".join(lines))
+
     # ==============================================================================
     # Inline Button Callback Query Handler
     # ==============================================================================
@@ -791,6 +840,8 @@ class InteractiveTelegramBot:
             self.handle_digest(chat_id)
         elif cmd == "/export":
             self.handle_export(chat_id)
+        elif cmd in ["/wire", "/benzinga"]:
+            self.handle_wire(chat_id, text)
         else:
             # Natural Language Q&A grounded in master log via Gemini
             self.send_message(chat_id, "🤔 <i>Analyzing Brookfield deal dataset...</i>")
