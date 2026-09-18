@@ -64,6 +64,7 @@ flowchart TD
 | **`api_manager.py`** | Secure credential loader. Reads `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID` from `.env`. |
 | **`backfill.py`** | Historical 24-month backfill engine with rate-limit pacing and shareholder letter ingestion. |
 | **`clean_datastore.py`** | Datastore sanitizer: normalizes dates, removes noisy prefixes/fragments, and deduplicates records. |
+| **`setup_vm.sh`** | 1-click cloud VM deployment script. Installs Python, builds `.venv`, and creates `systemd` 24/7 service. |
 | **`brookfield_24mo_log.csv`** | Master intelligence datastore containing 60 verified, de-bundled transactions. |
 | **`test_pipeline.py`** | Test suite for scraping, deduplication, schema validation, and multi-event de-bundling (7 tests). |
 | **`test_interactive_bot.py`** | Test suite for the interactive Telegram bot, query engine, deep dive generator, export, and digest (9 tests). |
@@ -239,6 +240,26 @@ journalctl -u brookfield-bot -f
 ```
 
 Your bot is now running **24/7 in the cloud**!
+
+---
+
+## Updating & Syncing Code (Continuous Git Workflow)
+
+Whenever you add new features, adjust scrapers, or tune prompts:
+
+### 1. Push Updates from Mac:
+```bash
+git add .
+git commit -m "Update feature or scraper"
+git push
+```
+
+### 2. Pull Updates on your Google VM (Takes ~2 seconds):
+Run this in your VM's SSH terminal:
+```bash
+cd ~/brookfield-digest && git pull && sudo systemctl restart brookfield-bot
+```
+The VM automatically downloads the changes and restarts the bot immediately with zero downtime.
 
 ---
 
