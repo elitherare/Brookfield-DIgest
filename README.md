@@ -86,7 +86,7 @@ Once running, you can interact with **`@BAMIntelligence_bot`** from your phone o
 * **`/exits`** — Lists recent Brookfield divestitures, secondary exits, and sales.
 * **`/letters`** — Highlights recent Brookfield Letters to Shareholders and unearths portfolio company bolt-ons.
 * **`/digest`** — Compiles and returns an executive morning briefing of recent dealflow, exits, and portfolio health.
-* **`/wire [ticker]`** — Real-time Benzinga institutional wire for Brookfield entities (e.g., `/wire` or `/wire BAM`).
+* **`/wire [ticker] [timeframe]`** — Real-time Benzinga institutional wire for Brookfield entities (e.g. `/wire`, `/wire BAM`, `/wire 7d`, or `/wire all`).
 * **`/export`** — Uploads and delivers the raw `brookfield_24mo_log.csv` spreadsheet directly into your Telegram chat to open in Excel or Numbers.
 * **`/stats`** — Generates a portfolio snapshot (total deals, breakdown by region, deal structures, and latest entry).
 * **`/scan`** — Triggers an on-demand scraping and classification sweep immediately without waiting for the next scheduled interval.
@@ -305,3 +305,44 @@ python test_interactive_bot.py
 * **Multi-Event De-bundling**: Press releases containing multiple transactions (e.g. quarterly reports citing both an acquisition and a divestiture) are automatically split into distinct, atomic CSV records.
 * **Rolling 3-Day Deduplication**: Pre-Gemini and post-Gemini deduplication filters out syndicated wire stories while preserving subsequent distinct developments.
 * **Silently Dropping Noise**: Routine proxy announcements, conference call dials, and dividend declarations are classified as `is_relevant=False` and discarded without polluting the datastore.
+
+---
+
+## Benzinga News, Alerts & Deal Rumors: Datastore Logic
+
+The pipeline ingests real-time institutional coverage from the **Benzinga News API (via Massive.com)** across core Brookfield tickers (`BAM`, `BN`, `BBU`, `BIP`, `BEP`). Here is exactly how the system separates actionable private equity intelligence from daily market noise:
+
+### 1. Background Sweeps (Hourly Daemon or `/scan`)
+When the background monitor runs, wire items pass through the Gemini classifier and are filtered as follows:
+* **🎯 Confirmed M&A Deals & Buyouts**:
+  - *Example:* "Brookfield agrees to acquire Reliance Worldwide for $2.8B."
+  - **Saved to CSV** (`signal_type = "Deal"` or `"Exit"`, `confidence = "confirmed"`).
+  - Pushes an immediate Telegram alert with the `⚡ [BENZINGA WIRE • {ticker}]` badge and interactive analysis buttons.
+* **🕵️ Deal Rumors & Unconfirmed Talks**:
+  - *Example:* "Brookfield in talks to acquire PGP Glass for $1.5B" or "Sources report Brookfield considering sale of..."
+  - **Saved to CSV** (`confidence = "rumor"`).
+  - Pushes a rumor alert to Telegram so you can track early-stage pipeline opportunities before official press releases.
+* **🏦 Major Fund Launches & Capital Raises**:
+  - *Example:* "CPP Investments and Brookfield launch $50B Maple Fund."
+  - **Saved to CSV** (`signal_type = "Fund"`).
+* **🗑️ Routine Stock Chatter & Market Noise (Filtered Out)**:
+  - *Example:* Minor analyst price target tweaks, daily options flow, or generic market commentary.
+  - **Silently dropped** (`is_relevant = False`) so your master CSV datastore remains an executive-grade transaction database without junk rows.
+
+### 2. On-Demand Telegram `/wire` Command
+* **`/wire`** functions as an on-demand, real-time **Bloomberg wire terminal**:
+  - Pulls live headlines straight from the Benzinga API without modifying the CSV.
+  - **30-Day Default Recency**: Automatically focuses on fresh, active dealflow from the past 30 days.
+  - **Smart Fallback**: If a queried ticker had no releases in the last 30 days (e.g. `/wire BBU`), it clearly explains: *"No wire items found for BBU in the past 30 days. Showing latest available coverage:"*
+  - **Custom Timeframe Controls**: Query `/wire 7d`, `/wire 14d`, `/wire BAM`, or `/wire all` for custom horizons.
+
+### Summary: Datastore & Alert Matrix
+
+| Content Type | Saved to Master CSV? | Pushed as Telegram Alert? | Visible in `/wire`? |
+| :--- | :---: | :---: | :---: |
+| **Confirmed M&A Deals & Buyouts** | ✅ **Yes** | ✅ **Yes** (`⚡ BENZINGA WIRE`) | ✅ **Yes** |
+| **M&A Rumors & Deal Talks** | ✅ **Yes** (`confidence: rumor`) | ✅ **Yes** | ✅ **Yes** |
+| **Divestitures & Asset Sales** | ✅ **Yes** (`signal: Exit`) | ✅ **Yes** | ✅ **Yes** |
+| **Major Fund Launches ($50B Maple)** | ✅ **Yes** (`signal: Fund`) | ✅ **Yes** | ✅ **Yes** |
+| **Routine Stock Price Target Tweaks** | ❌ *Filtered (Noise)* | ❌ *Filtered* | ✅ **Yes** |
+
