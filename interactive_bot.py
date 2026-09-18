@@ -751,21 +751,38 @@ class InteractiveTelegramBot:
         parts = text.strip().split()
         tickers = None
         limit = 5
+        days = 30
         valid_tickers = ["BAM", "BN", "BBU", "BIP", "BEP"]
         for p in parts[1:]:
             p_up = p.upper()
             if p_up in valid_tickers:
                 tickers = [p_up]
+            elif p_up.endswith("D") and p_up[:-1].isdigit():
+                days = int(p_up[:-1])
+            elif p_up == "ALL":
+                days = None
             elif p.isdigit():
                 limit = min(max(int(p), 1), 10)
 
         target_display = f"<code>{tickers[0]}</code>" if tickers else "<code>BAM, BN, BBU, BIP, BEP</code>"
-        self.send_message(chat_id, f"⚡ <i>Fetching live Benzinga wire for {target_display}...</i>")
+        time_desc = f"past {days} days" if days else "all-time"
+        self.send_message(chat_id, f"⚡ <i>Fetching live Benzinga wire for {target_display} ({time_desc})...</i>")
 
-        articles = fetch_benzinga_news(tickers=tickers, limit=limit)
+        articles = fetch_benzinga_news(tickers=tickers, limit=limit, days=days)
         if not articles:
-            self.send_message(chat_id, f"No recent Benzinga wire items found for {target_display}.")
-            return
+            # If user queried a specific ticker with days cutoff and found nothing, check without cutoff
+            if tickers and days:
+                fallback = fetch_benzinga_news(tickers=tickers, limit=3, days=None)
+                if fallback:
+                    self.send_message(
+                        chat_id,
+                        f"ℹ️ <i>No wire items found for {target_display} in the {time_desc}. Showing latest available coverage:</i>"
+                    )
+                    articles = fallback
+
+            if not articles:
+                self.send_message(chat_id, f"No Benzinga wire items found for {target_display} ({time_desc}).")
+                return
 
         articles = articles[:limit]
 

@@ -5,7 +5,7 @@ Handles pulling paginated HTML from Brookfield's newsroom and standard RSS feeds
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 import warnings
 from urllib.parse import urljoin
@@ -309,6 +309,7 @@ def fetch_brookfield_shareholder_letters(
 def fetch_benzinga_news(
     tickers: Optional[List[str]] = None,
     limit: int = 10,
+    days: Optional[int] = 30,
     api_key: Optional[str] = None,
     timeout: int = 15,
 ) -> List[Dict[str, Any]]:
@@ -334,6 +335,9 @@ def fetch_benzinga_news(
             "sort": "published.desc",
             "apiKey": key,
         }
+        if days:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+            params["published.gte"] = cutoff
         try:
             resp = requests.get(BENZINGA_BASE_URL, params=params, timeout=timeout)
             if resp.status_code != 200:

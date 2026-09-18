@@ -199,7 +199,7 @@ def run_monitoring_cycle(
     # 5. Fetch Benzinga Institutional News Wire (Massive.com)
     if is_benzinga_configured():
         logger.info("Polling Benzinga Institutional News Wire for BAM, BN, BBU, BIP, BEP...")
-        benzinga_items = fetch_benzinga_news(limit=5)
+        benzinga_items = fetch_benzinga_news(limit=5, days=7)
         candidates.extend(benzinga_items)
 
     logger.info(f"\nTotal candidate items collected for evaluation: {len(candidates)}")
